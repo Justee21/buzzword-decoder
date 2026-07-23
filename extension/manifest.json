@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Buzzword Decoder",
+  "version": "1.0.0",
+  "description": "Translates corporate jargon on any webpage into plain English.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["http://localhost:3000/*"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Buzzword Decoder",
+    "default_popup": "popup.html"
+  }
+}
