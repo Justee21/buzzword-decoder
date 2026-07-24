@@ -124,6 +124,7 @@
 
       .proxy-edit {
         display: flex;
+        flex-direction: column;
         gap: 6px;
         margin-bottom: 14px;
         padding-bottom: 14px;
@@ -135,8 +136,9 @@
         display: none;
       }
 
-      input[type="url"] {
-        flex: 1;
+      input[type="url"],
+      input[type="password"] {
+        width: 100%;
         min-width: 0;
         padding: 7px 9px;
         border: 1px solid var(--border);
@@ -146,14 +148,21 @@
         font-size: 12.5px;
       }
 
-      input[type="url"]:focus {
+      input[type="url"]:focus,
+      input[type="password"]:focus {
         outline: 2px solid var(--link);
         outline-offset: -1px;
       }
 
+      .field-hint {
+        margin: -2px 0 0;
+        color: var(--muted);
+        font-size: 11px;
+      }
+
       button#save {
-        flex: none;
-        padding: 0 12px;
+        width: 100%;
+        padding: 7px 12px;
         border: 1px solid var(--border);
         border-radius: 6px;
         background: var(--bg);
@@ -240,6 +249,8 @@
 
     <div id="proxy-edit" class="proxy-edit" hidden>
       <input id="proxy-url" class="mono" type="url" spellcheck="false" placeholder="http://localhost:3000" />
+      <input id="proxy-token" class="mono" type="password" spellcheck="false" placeholder="Auth token (optional)" />
+      <p class="field-hint">Only needed if the server sets PROXY_AUTH_TOKEN — leave blank for localhost.</p>
       <button id="save" type="button">Save</button>
     </div>
 

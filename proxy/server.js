@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { timingSafeEqual } from "node:crypto";
 
 import express from "express";
 import Anthropic from "@anthropic-ai/sdk";
@@ -16,6 +17,12 @@ const PLACEHOLDER_KEY = "sk-ant-...";
 const rawKey = (process.env.ANTHROPIC_API_KEY ?? "").trim();
 const keyIsPlaceholder = rawKey === PLACEHOLDER_KEY;
 const apiKey = rawKey && !keyIsPlaceholder ? rawKey : undefined;
+
+// Optional. Unset by default (matches existing localhost/dev behavior — no
+// auth required). Set this before deploying anywhere reachable off your own
+// machine: without it, CORS is the only gate, and CORS only stops browser
+// JS — not a script hitting the URL directly.
+const authToken = (process.env.PROXY_AUTH_TOKEN ?? "").trim() || undefined;
 
 // Constructed even when the key is missing so the process still boots and can
 // return a clear error per request instead of crashing on startup.
@@ -93,7 +100,7 @@ app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     res.setHeader("Access-Control-Max-Age", "86400");
   } else if (origin) {
     // A browser page on some other origin is trying to use the proxy.
@@ -112,15 +119,46 @@ app.get("/health", (_req, res) => {
     ok: true,
     model: MODEL,
     apiKeyConfigured: Boolean(apiKey),
+    authRequired: Boolean(authToken),
   });
 });
+
+// ---------------------------------------------------------------------------
+// Auth — only enforced when PROXY_AUTH_TOKEN is set. No-op locally by
+// default so existing localhost setups keep working unchanged.
+// ---------------------------------------------------------------------------
+function requireAuthToken(req, res, next) {
+  if (!authToken) return next();
+
+  const header = req.headers.authorization ?? "";
+  const provided = header.startsWith("Bearer ") ? header.slice(7) : "";
+
+  if (!timingSafeEqualStrings(provided, authToken)) {
+    return res.status(401).json({
+      error: "unauthorized",
+      message: "Missing or invalid auth token.",
+    });
+  }
+
+  return next();
+}
+
+/** Constant-time string comparison — avoids leaking token length/contents
+ * through response-time differences. Buffer length must match first:
+ * timingSafeEqual throws (rather than returning false) on mismatched sizes. */
+function timingSafeEqualStrings(a, b) {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
+}
 
 // ---------------------------------------------------------------------------
 // POST /decode
 //   body:    { chunks: ["...", "..."] }
 //   returns: { results: [[{original, plain}, ...], ...] }  (one array per chunk)
 // ---------------------------------------------------------------------------
-app.post("/decode", async (req, res) => {
+app.post("/decode", requireAuthToken, async (req, res) => {
   if (!apiKey) {
     return res.status(500).json({
       error: "missing_api_key",
@@ -372,6 +410,12 @@ async function mapWithConcurrency(items, limit, worker) {
 const server = app.listen(PORT, () => {
   console.log(`Buzzword Decoder proxy listening on http://localhost:${PORT}`);
   console.log(`  model: ${MODEL}`);
+  if (authToken) {
+    console.log("  auth: PROXY_AUTH_TOKEN is set — /decode requires it");
+  } else {
+    console.warn("  auth: PROXY_AUTH_TOKEN is not set — /decode is open to any chrome-extension:// caller");
+    console.warn("        set it before deploying anywhere other than localhost");
+  }
   if (keyIsPlaceholder) {
     console.warn("\n  WARNING: ANTHROPIC_API_KEY in .env is still the placeholder (sk-ant-...).");
     console.warn("  Open proxy/.env, paste your real key, and restart. Decoding will fail until then.\n");

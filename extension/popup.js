@@ -6,28 +6,33 @@ const proxyDisplay = document.getElementById("proxy-display");
 const changeButton = document.getElementById("change");
 const proxyEdit = document.getElementById("proxy-edit");
 const urlInput = document.getElementById("proxy-url");
+const tokenInput = document.getElementById("proxy-token");
 const saveButton = document.getElementById("save");
 const statusEl = document.getElementById("status");
 const progressTrack = document.getElementById("progress-track");
 const progressFill = document.getElementById("progress-fill");
 
 let currentProxyUrl = DEFAULT_PROXY_URL;
+let currentProxyToken = "";
 let progressTimer = null;
 
 init();
 
 async function init() {
-  const { proxyUrl } = await chrome.storage.local.get("proxyUrl");
+  const { proxyUrl, proxyToken } = await chrome.storage.local.get(["proxyUrl", "proxyToken"]);
   currentProxyUrl = proxyUrl || DEFAULT_PROXY_URL;
+  currentProxyToken = proxyToken || "";
   proxyDisplay.textContent = displayUrl(currentProxyUrl);
 
   decodeButton.addEventListener("click", onDecode);
   changeButton.addEventListener("click", openEdit);
   saveButton.addEventListener("click", onSave);
-  urlInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") onSave();
-    if (e.key === "Escape") closeEdit();
-  });
+  for (const input of [urlInput, tokenInput]) {
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") onSave();
+      if (e.key === "Escape") closeEdit();
+    });
+  }
 }
 
 /** Drops the http:// prefix for display; keeps https:// visible as a signal. */
@@ -164,6 +169,7 @@ function finishProgress() {
 
 function openEdit() {
   urlInput.value = currentProxyUrl;
+  tokenInput.value = currentProxyToken;
   proxyRow.hidden = true;
   proxyEdit.hidden = false;
   urlInput.focus();
@@ -202,11 +208,14 @@ async function onSave() {
     return;
   }
 
-  await chrome.storage.local.set({ proxyUrl });
+  const proxyToken = tokenInput.value.trim();
+
+  await chrome.storage.local.set({ proxyUrl, proxyToken });
   currentProxyUrl = proxyUrl;
+  currentProxyToken = proxyToken;
   proxyDisplay.textContent = displayUrl(proxyUrl);
   closeEdit();
-  setIdle("ok", "Proxy URL saved.");
+  setIdle("ok", "Proxy settings saved.");
 }
 
 async function ensureHostPermission(proxyUrl) {

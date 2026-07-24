@@ -69,9 +69,12 @@ async function decode(chunks) {
     return { ok: true, results: [] };
   }
 
-  const { proxyUrl } = await chrome.storage.local.get("proxyUrl");
+  const { proxyUrl, proxyToken } = await chrome.storage.local.get(["proxyUrl", "proxyToken"]);
   const base = (proxyUrl || DEFAULT_PROXY_URL).replace(/\/+$/, "");
   const endpoint = `${base}/decode`;
+
+  const headers = { "Content-Type": "application/json" };
+  if (proxyToken) headers.Authorization = `Bearer ${proxyToken}`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -80,7 +83,7 @@ async function decode(chunks) {
   try {
     response = await fetch(endpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ chunks }),
       signal: controller.signal,
     });
