@@ -8,30 +8,32 @@
         color-scheme: light dark;
         --bg: #ffffff;
         --fg: #16181d;
-        --muted: #6b7280;
-        --border: #e2e5ea;
-        --accent: #b4530a;
-        --accent-fg: #ffffff;
-        --field: #f7f8fa;
-        --ok-bg: #edf7ee;
-        --ok-fg: #1d6b2b;
-        --err-bg: #fdeeee;
-        --err-fg: #a3241f;
+        --muted: #9aa0a8;
+        --border: #eceeef;
+        --track: #e9ebed;
+        --button-idle: #16181d;
+        --button-idle-fg: #ffffff;
+        --button-loading: #55585e;
+        --quote: #b4530a;
+        --link: #2f5fd1;
+        --ok: #1d6b2b;
+        --err: #a3241f;
       }
 
       @media (prefers-color-scheme: dark) {
         :root {
           --bg: #17191d;
           --fg: #eceef1;
-          --muted: #9aa1ad;
-          --border: #2c2f36;
-          --accent: #e2803a;
-          --accent-fg: #17191d;
-          --field: #202329;
-          --ok-bg: #16261a;
-          --ok-fg: #7bc98a;
-          --err-bg: #2a1919;
-          --err-fg: #ef8d86;
+          --muted: #868c96;
+          --border: #2a2d33;
+          --track: #2a2d33;
+          --button-idle: #eceef1;
+          --button-idle-fg: #16181d;
+          --button-loading: #4b4e55;
+          --quote: #e2924e;
+          --link: #7ea1ff;
+          --ok: #7bc98a;
+          --err: #ef8d86;
         }
       }
 
@@ -40,9 +42,9 @@
       }
 
       body {
-        width: 320px;
+        width: 360px;
         margin: 0;
-        padding: 16px;
+        padding: 20px;
         background: var(--bg);
         color: var(--fg);
         font:
@@ -53,104 +55,84 @@
           sans-serif;
       }
 
+      .mono {
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin-bottom: 14px;
+      }
+
+      .app-icon {
+        width: 18px;
+        height: 18px;
+        flex: none;
+        border-radius: 5px;
+        background: var(--fg);
+      }
+
       h1 {
-        margin: 0 0 2px;
+        margin: 0;
         font-size: 15px;
-        font-weight: 600;
+        font-weight: 700;
         letter-spacing: -0.01em;
       }
 
-      .sub {
-        margin: 0 0 14px;
+      .proxy-row {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-bottom: 14px;
+        padding-bottom: 14px;
+        border-bottom: 1px solid var(--border);
         color: var(--muted);
-        font-size: 12px;
-      }
-
-      button#decode {
-        width: 100%;
-        padding: 10px 12px;
-        border: 0;
-        border-radius: 8px;
-        background: var(--accent);
-        color: var(--accent-fg);
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
-      }
-
-      button#decode:hover:not(:disabled) {
-        filter: brightness(1.06);
-      }
-
-      button#decode:disabled {
-        opacity: 0.6;
-        cursor: default;
-      }
-
-      .status {
-        display: none;
-        margin-top: 12px;
-        padding: 9px 11px;
-        border-radius: 7px;
         font-size: 12.5px;
       }
 
-      .status.visible {
-        display: block;
+      .proxy-icon {
+        flex: none;
+        width: 13px;
+        height: 13px;
       }
 
-      .status.loading {
-        background: var(--field);
+      #proxy-display {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .link-btn {
+        flex: none;
+        padding: 0;
+        border: 0;
+        background: none;
         color: var(--muted);
+        font-size: 12.5px;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+        cursor: pointer;
       }
 
-      .status.done {
-        background: var(--ok-bg);
-        color: var(--ok-fg);
+      .link-btn:hover {
+        color: var(--fg);
       }
 
-      .status.error {
-        background: var(--err-bg);
-        color: var(--err-fg);
-      }
-
-      .spinner {
-        display: inline-block;
-        width: 10px;
-        height: 10px;
-        margin-right: 7px;
-        border: 2px solid currentColor;
-        border-right-color: transparent;
-        border-radius: 50%;
-        vertical-align: -1px;
-        animation: spin 0.7s linear infinite;
-      }
-
-      @keyframes spin {
-        to {
-          transform: rotate(360deg);
-        }
-      }
-
-      .settings {
-        margin-top: 18px;
-        padding-top: 14px;
-        border-top: 1px solid var(--border);
-      }
-
-      label {
-        display: block;
-        margin-bottom: 5px;
-        color: var(--muted);
-        font-size: 11.5px;
-        font-weight: 600;
-        letter-spacing: 0.02em;
-        text-transform: uppercase;
-      }
-
-      .row {
+      .proxy-edit {
         display: flex;
         gap: 6px;
+        margin-bottom: 14px;
+        padding-bottom: 14px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .proxy-edit[hidden],
+      .proxy-row[hidden] {
+        display: none;
       }
 
       input[type="url"] {
@@ -159,59 +141,115 @@
         padding: 7px 9px;
         border: 1px solid var(--border);
         border-radius: 6px;
-        background: var(--field);
+        background: var(--bg);
         color: var(--fg);
         font-size: 12.5px;
-        font-family: ui-monospace, "SF Mono", Menlo, monospace;
       }
 
       input[type="url"]:focus {
-        outline: 2px solid var(--accent);
+        outline: 2px solid var(--link);
         outline-offset: -1px;
       }
 
       button#save {
-        padding: 7px 11px;
+        flex: none;
+        padding: 0 12px;
         border: 1px solid var(--border);
         border-radius: 6px;
-        background: var(--field);
+        background: var(--bg);
         color: var(--fg);
         font-size: 12.5px;
+        font-weight: 600;
         cursor: pointer;
       }
 
       button#save:hover {
-        border-color: var(--accent);
+        border-color: var(--fg);
       }
 
-      .hint {
-        margin: 7px 0 0;
+      button#decode {
+        width: 100%;
+        padding: 11px 12px;
+        border: 0;
+        border-radius: 8px;
+        background: var(--button-idle);
+        color: var(--button-idle-fg);
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: background-color 150ms ease;
+      }
+
+      button#decode:disabled {
+        background: var(--button-loading);
+        color: #ffffff;
+        cursor: default;
+      }
+
+      .progress-track {
+        margin-top: 10px;
+        height: 4px;
+        border-radius: 2px;
+        background: var(--track);
+        overflow: hidden;
+      }
+
+      .progress-track[hidden] {
+        display: none;
+      }
+
+      .progress-fill {
+        width: 0%;
+        height: 100%;
+        border-radius: 2px;
+        background: var(--button-idle);
+        transition: width 220ms ease;
+      }
+
+      .status {
+        margin: 10px 0 0;
+        min-height: 16px;
         color: var(--muted);
-        font-size: 11.5px;
+        font-size: 12.5px;
+        text-align: center;
+      }
+
+      .status.ok {
+        color: var(--ok);
+      }
+
+      .status.error {
+        color: var(--err);
       }
     </style>
   </head>
   <body>
-    <h1>Buzzword Decoder</h1>
-    <p class="sub">Find the jargon on this page and say what it actually means.</p>
+    <header>
+      <span class="app-icon" aria-hidden="true"></span>
+      <h1>Buzzword Decoder</h1>
+    </header>
+
+    <div id="proxy-row" class="proxy-row">
+      <svg class="proxy-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <circle cx="8" cy="8" r="6.25" stroke="currentColor" stroke-width="1.3" />
+        <circle cx="8" cy="8" r="2" fill="currentColor" />
+      </svg>
+      <span id="proxy-display" class="mono">localhost:3000</span>
+      <button id="change" class="link-btn mono" type="button">change</button>
+    </div>
+
+    <div id="proxy-edit" class="proxy-edit" hidden>
+      <input id="proxy-url" class="mono" type="url" spellcheck="false" placeholder="http://localhost:3000" />
+      <button id="save" type="button">Save</button>
+    </div>
 
     <button id="decode" type="button">Decode This Page</button>
 
-    <div id="status" class="status" role="status" aria-live="polite"></div>
-
-    <div class="settings">
-      <label for="proxy-url">Proxy server</label>
-      <div class="row">
-        <input
-          id="proxy-url"
-          type="url"
-          spellcheck="false"
-          placeholder="http://localhost:3000"
-        />
-        <button id="save" type="button">Save</button>
-      </div>
-      <p class="hint">Your API key lives on this server, never in the browser.</p>
+    <div id="progress-track" class="progress-track" hidden>
+      <div id="progress-fill" class="progress-fill"></div>
     </div>
+
+    <p id="status" class="status" role="status" aria-live="polite">Ready.</p>
 
     <script src="popup.js"></script>
   </body>
