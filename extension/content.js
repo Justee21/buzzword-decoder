@@ -225,19 +225,25 @@
           display: flex;
           align-items: center;
           gap: 10px;
-          padding: 16px 18px;
-          border-bottom: 1px solid #e6e8ec;
+          padding: 17px 18px;
+          border-bottom: 1px solid #eceeef;
         }
 
-        .title { font-size: 14px; font-weight: 650; letter-spacing: -0.01em; }
-        .count { flex: 1; color: #6b7280; font-size: 12.5px; }
+        .heading {
+          flex: 1;
+          margin: 0;
+          font-size: 15px;
+          font-weight: 700;
+          letter-spacing: -0.01em;
+        }
 
         .close {
+          flex: none;
           padding: 4px 8px;
           border: 0;
           border-radius: 6px;
           background: transparent;
-          color: #6b7280;
+          color: #9aa0a8;
           font-size: 18px;
           line-height: 1;
           cursor: pointer;
@@ -247,39 +253,43 @@
         .body {
           flex: 1;
           overflow-y: auto;
-          padding: 14px 18px 28px;
+          padding: 4px 18px 28px;
         }
 
-        .card {
-          margin-bottom: 12px;
-          padding: 13px 14px;
-          border: 1px solid #e6e8ec;
-          border-radius: 10px;
-          cursor: pointer;
-          transition: border-color 120ms ease, background 120ms ease;
+        .item {
+          padding: 16px 0;
+          border-bottom: 1px solid #eceeef;
         }
-        .card:hover { border-color: #d9b48a; background: #fdfaf6; }
+        .item:last-child { border-bottom: 0; }
 
-        .original {
-          margin: 0 0 9px;
-          padding-left: 10px;
-          border-left: 3px solid #e0c39c;
-          color: #5b6169;
-          font-size: 13px;
-          font-style: italic;
+        .quote {
+          margin: 0 0 8px;
+          color: #b4530a;
+          font-size: 13.5px;
+          line-height: 1.5;
         }
+        .quote::before { content: "\\201C"; }
+        .quote::after { content: "\\201D"; }
 
         .plain {
-          margin: 0;
+          margin: 0 0 8px;
           font-size: 13.5px;
-          font-weight: 500;
+          font-weight: 600;
           color: #16181d;
         }
+
+        .jump {
+          color: #2f5fd1;
+          font-size: 12.5px;
+          text-decoration: underline;
+          text-underline-offset: 2px;
+        }
+        .jump:hover { color: #1f45a8; }
 
         .note {
           margin: 0;
           padding: 24px 4px;
-          color: #6b7280;
+          color: #9aa0a8;
           font-size: 13px;
           text-align: center;
         }
@@ -291,8 +301,8 @@
           width: 18px;
           height: 18px;
           margin: 0 auto 12px;
-          border: 2px solid #d8dbe0;
-          border-top-color: #b4530a;
+          border: 2px solid #e5e7ea;
+          border-top-color: #16181d;
           border-radius: 50%;
           animation: spin 0.75s linear infinite;
         }
@@ -301,21 +311,23 @@
 
         @media (prefers-color-scheme: dark) {
           .panel { background: #17191d; color: #eceef1; }
-          header { border-bottom-color: #2c2f36; }
-          .count, .close, .note { color: #9aa1ad; }
+          header { border-bottom-color: #2a2d33; }
+          .close { color: #868c96; }
           .close:hover { background: #23262c; color: #eceef1; }
-          .card { border-color: #2c2f36; }
-          .card:hover { border-color: #6d4a29; background: #1e2025; }
-          .original { color: #a8afba; border-left-color: #7a5a32; }
+          .item { border-bottom-color: #2a2d33; }
+          .quote { color: #e2924e; }
           .plain { color: #eceef1; }
+          .jump { color: #7ea1ff; }
+          .jump:hover { color: #a9c2ff; }
+          .note { color: #868c96; }
           .note.error { color: #ef8d86; }
+          .spinner { border-color: #2a2d33; border-top-color: #eceef1; }
         }
       </style>
 
       <div class="panel" part="panel">
         <header>
-          <span class="title">Buzzword Decoder</span>
-          <span class="count"></span>
+          <p class="heading">Buzzword Decoder</p>
           <button class="close" type="button" aria-label="Close">&times;</button>
         </header>
         <div class="body"></div>
@@ -344,9 +356,9 @@
     shadow = null;
   }
 
-  function setBody(countText, build) {
+  function setBody(headingText, build) {
     const root = getPanel();
-    root.querySelector(".count").textContent = countText;
+    root.querySelector(".heading").textContent = headingText;
 
     const body = root.querySelector(".body");
     body.textContent = "";
@@ -354,7 +366,7 @@
   }
 
   function renderLoading(chunkCount) {
-    setBody("", (body) => {
+    setBody("Buzzword Decoder", (body) => {
       const spinner = document.createElement("div");
       spinner.className = "spinner";
 
@@ -367,7 +379,7 @@
   }
 
   function renderEmpty(message) {
-    setBody("", (body) => {
+    setBody("Buzzword Decoder", (body) => {
       const note = document.createElement("p");
       note.className = "note";
       note.textContent = message;
@@ -376,7 +388,7 @@
   }
 
   function renderError(message) {
-    setBody("", (body) => {
+    setBody("Buzzword Decoder", (body) => {
       const note = document.createElement("p");
       note.className = "note error";
       note.textContent = message;
@@ -385,23 +397,30 @@
   }
 
   function renderResults(pairs) {
-    setBody(`${pairs.length} found`, (body) => {
+    setBody(`${pairs.length} ${pairs.length === 1 ? "buzzword" : "buzzwords"} found`, (body) => {
       for (const pair of pairs) {
-        const card = document.createElement("div");
-        card.className = "card";
-        card.title = "Click to find this on the page";
+        const item = document.createElement("div");
+        item.className = "item";
 
-        const original = document.createElement("p");
-        original.className = "original";
-        original.textContent = pair.original;
+        const quote = document.createElement("p");
+        quote.className = "quote";
+        quote.textContent = pair.original;
 
         const plain = document.createElement("p");
         plain.className = "plain";
         plain.textContent = pair.plain;
 
-        card.append(original, plain);
-        card.addEventListener("click", () => revealOnPage(pair.original));
-        body.appendChild(card);
+        const jump = document.createElement("a");
+        jump.className = "jump";
+        jump.href = "#";
+        jump.textContent = "Jump to spot ↗";
+        jump.addEventListener("click", (e) => {
+          e.preventDefault();
+          revealOnPage(pair.original);
+        });
+
+        item.append(quote, plain, jump);
+        body.appendChild(item);
       }
     });
   }
