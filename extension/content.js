@@ -67,7 +67,7 @@
     const pairs = flattenResults(response.results);
     const highlighted = highlightPairs(pairs);
 
-    sendStatus({ status: highlighted > 0 ? "found" : "empty", count: highlighted });
+    sendStatus({ status: highlighted > 0 ? "found" : "empty" });
     return { ok: true, count: highlighted, blocksScanned: blocks.length };
   }
 

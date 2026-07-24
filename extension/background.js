@@ -2,86 +2,32 @@ const DEFAULT_PROXY_URL = "http://localhost:3000";
 const REQUEST_TIMEOUT_MS = 90_000;
 
 // ---------------------------------------------------------------------------
-// Toolbar icon / badge — reflects per-tab decode state (idle / scanning /
-// found N / error) so it's visible without opening the popup. Icons are
-// drawn at runtime via OffscreenCanvas rather than shipped as PNG assets —
-// MV3 service workers can't use a regular <canvas>, but OffscreenCanvas is
-// available and this keeps the extension free of binary asset files.
+// Toolbar icon — reflects per-tab decode state (idle / working / done) so
+// it's visible without opening the popup. Uses the packaged PNG icon set
+// (extension/icons/) rather than drawing anything at runtime.
 // ---------------------------------------------------------------------------
 
-const ICON_SIZES = [16, 32, 48, 128];
-const ICON_COLOR = {
-  idle: "#16181d",
-  scanning: "#9aa0a8",
-  found: "#b4530a",
-  error: "#a3241f",
+const ICON_STATE_PATHS = {
+  idle: { 16: "icons/icon16-idle.png", 32: "icons/icon32-idle.png", 48: "icons/icon48-idle.png", 128: "icons/icon128-idle.png" },
+  working: { 16: "icons/icon16-working.png", 32: "icons/icon32-working.png", 48: "icons/icon48-working.png", 128: "icons/icon128-working.png" },
+  done: { 16: "icons/icon16-done.png", 32: "icons/icon32-done.png", 48: "icons/icon48-done.png", 128: "icons/icon128-done.png" },
 };
 
-const iconCache = new Map(); // hex color -> { [size]: ImageData }
-
-function roundedRectPath(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-
-function buildIconImageData(hexColor) {
-  const cached = iconCache.get(hexColor);
-  if (cached) return cached;
-
-  const images = {};
-  for (const size of ICON_SIZES) {
-    const canvas = new OffscreenCanvas(size, size);
-    const ctx = canvas.getContext("2d");
-    const inset = Math.round(size * 0.14);
-    const w = size - inset * 2;
-    const radius = Math.max(2, Math.round(size * 0.22));
-
-    ctx.clearRect(0, 0, size, size);
-    ctx.fillStyle = hexColor;
-    roundedRectPath(ctx, inset, inset, w, w, radius);
-    ctx.fill();
-
-    images[size] = ctx.getImageData(0, 0, size, size);
-  }
-
-  iconCache.set(hexColor, images);
-  return images;
-}
-
-/** Sets the icon/badge for one tab. Swallows errors — a closed or navigated-
- * away tab shouldn't surface as a console error for a non-critical UI touch. */
-async function setTabState(tabId, state, badgeText = "") {
+/** Sets the icon for one tab. Swallows errors — a closed or navigated-away
+ * tab shouldn't surface as a console error for a non-critical UI touch. */
+async function setTabIconState(tabId, state) {
   try {
-    await chrome.action.setIcon({ tabId, imageData: buildIconImageData(ICON_COLOR[state]) });
-    await chrome.action.setBadgeText({ tabId, text: badgeText });
-    if (badgeText) {
-      await chrome.action.setBadgeBackgroundColor({ tabId, color: ICON_COLOR[state] });
-    }
+    await chrome.action.setIcon({ tabId, path: ICON_STATE_PATHS[state] });
   } catch {
     // Tab may have closed or navigated before this resolved.
   }
 }
 
-function setGlobalDefaultIcon() {
-  chrome.action.setIcon({ imageData: buildIconImageData(ICON_COLOR.idle) }).catch(() => {});
-}
-
-// Establish the branded idle icon as soon as the service worker starts, so
-// the toolbar shows it instead of Chrome's generic puzzle-piece icon before
-// any tab has triggered a decode.
-setGlobalDefaultIcon();
-chrome.runtime.onInstalled.addListener(setGlobalDefaultIcon);
-
-// A fresh page load invalidates whatever icon/badge state was showing for
-// the previous page in this tab — don't let a stale "Found 4" linger.
+// A fresh page load invalidates whatever icon state was showing for the
+// previous page in this tab — don't let a stale "done" icon linger.
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.status === "loading") {
-    setTabState(tabId, "idle", "");
+    setTabIconState(tabId, "idle");
   }
 });
 
@@ -109,13 +55,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 function applyDecodeStatus(tabId, message) {
   switch (message.status) {
     case "scanning":
-      return setTabState(tabId, "scanning");
+      return setTabIconState(tabId, "working");
     case "found":
-      return setTabState(tabId, "found", String(message.count ?? ""));
-    case "error":
-      return setTabState(tabId, "error", "!");
-    default: // "empty" — scanned, nothing to flag
-      return setTabState(tabId, "idle", "");
+    case "empty": // scanned successfully either way — just nothing to flag
+      return setTabIconState(tabId, "done");
+    default: // "error" — nothing completed, back to idle
+      return setTabIconState(tabId, "idle");
   }
 }
 

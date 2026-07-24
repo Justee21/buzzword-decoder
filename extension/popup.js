@@ -85,7 +85,7 @@ async function onDecode() {
       return;
     }
 
-    setIdle("ok", `Found ${count} ${count === 1 ? "buzzword" : "buzzwords"} — hover the underlines to translate.`);
+    setIdle("ok", "Scan complete! Hover the underlined text to see what it really means.");
   } catch (err) {
     finishProgress();
     setIdle("error", friendlyError(err));
