@@ -4,7 +4,8 @@
   if (window.__buzzwordDecoderReady) return;
   window.__buzzwordDecoderReady = true;
 
-  const PANEL_ID = "buzzword-decoder-panel";
+  const MARK_CLASS = "bd-mark";
+  const POPOVER_HOST_ID = "buzzword-decoder-popover";
   const MAX_CHUNK_CHARS = 4500;
   const MAX_CHUNKS = 12;
   const MIN_BLOCK_CHARS = 25;
@@ -23,6 +24,8 @@
     "H1", "H2", "H3", "H4", "H5", "H6", "SUMMARY", "DETAILS", "BODY",
   ]);
 
+  injectMarkStyles();
+
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type !== "DECODE_PAGE") return false;
 
@@ -38,15 +41,15 @@
   // -------------------------------------------------------------------------
 
   async function runDecode() {
-    const blocks = extractBlocks();
+    hidePopoverNow();
+    clearMarks();
 
+    const blocks = extractBlocks();
     if (blocks.length === 0) {
-      renderEmpty("There's not much readable text on this page.");
       return { ok: true, count: 0, blocksScanned: 0 };
     }
 
     const chunks = buildChunks(blocks);
-    renderLoading(chunks.length);
 
     const response = await chrome.runtime.sendMessage({
       type: "DECODE_CHUNKS",
@@ -55,19 +58,13 @@
 
     if (!response?.ok) {
       const message = response?.message ?? "The decode request failed.";
-      renderError(message);
       return { ok: false, message };
     }
 
     const pairs = flattenResults(response.results);
+    const highlighted = highlightPairs(pairs);
 
-    if (pairs.length === 0) {
-      renderEmpty("No corporate jargon found. This page is refreshingly clear.");
-    } else {
-      renderResults(pairs);
-    }
-
-    return { ok: true, count: pairs.length, blocksScanned: blocks.length };
+    return { ok: true, count: highlighted, blocksScanned: blocks.length };
   }
 
   function flattenResults(results) {
@@ -129,7 +126,7 @@
     const parent = node.parentElement;
     if (!parent) return NodeFilter.FILTER_REJECT;
     if (SKIP_TAGS.has(parent.tagName)) return NodeFilter.FILTER_REJECT;
-    if (parent.closest(`#${PANEL_ID}`)) return NodeFilter.FILTER_REJECT;
+    if (parent.closest(`.${MARK_CLASS}`)) return NodeFilter.FILTER_REJECT;
     if (parent.closest('[aria-hidden="true"]')) return NodeFilter.FILTER_REJECT;
     if (!isVisible(parent)) return NodeFilter.FILTER_REJECT;
 
@@ -182,298 +179,312 @@
   }
 
   // -------------------------------------------------------------------------
-  // Panel
+  // Inline highlighting — wrap each phrase in the live DOM with an underline
+  // span, rather than rendering results in a separate panel.
   // -------------------------------------------------------------------------
 
-  let shadow = null;
+  /** WeakMap so removed marks don't leak entries; keyed by the <span>. */
+  let markPlainText = new WeakMap();
 
-  function getPanel() {
-    if (shadow && shadow.host.isConnected) return shadow;
+  function injectMarkStyles() {
+    if (document.getElementById("bd-styles")) return;
 
-    const host = document.createElement("div");
-    host.id = PANEL_ID;
-    document.documentElement.appendChild(host);
-
-    shadow = host.attachShadow({ mode: "open" });
-    shadow.innerHTML = `
-      <style>
-        :host {
-          all: initial;
-        }
-        * { box-sizing: border-box; }
-
-        .panel {
-          position: fixed;
-          top: 0;
-          right: 0;
-          z-index: 2147483647;
-          display: flex;
-          flex-direction: column;
-          width: min(420px, 92vw);
-          height: 100vh;
-          background: #ffffff;
-          color: #16181d;
-          font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-          box-shadow: -8px 0 32px rgba(15, 18, 25, 0.18);
-          transform: translateX(100%);
-          transition: transform 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
-        }
-
-        .panel.open { transform: translateX(0); }
-
-        header {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 17px 18px;
-          border-bottom: 1px solid #eceeef;
-        }
-
-        .heading {
-          flex: 1;
-          margin: 0;
-          font-size: 15px;
-          font-weight: 700;
-          letter-spacing: -0.01em;
-        }
-
-        .close {
-          flex: none;
-          padding: 4px 8px;
-          border: 0;
-          border-radius: 6px;
-          background: transparent;
-          color: #9aa0a8;
-          font-size: 18px;
-          line-height: 1;
-          cursor: pointer;
-        }
-        .close:hover { background: #f1f3f6; color: #16181d; }
-
-        .body {
-          flex: 1;
-          overflow-y: auto;
-          padding: 4px 18px 28px;
-        }
-
-        .item {
-          padding: 16px 0;
-          border-bottom: 1px solid #eceeef;
-        }
-        .item:last-child { border-bottom: 0; }
-
-        .quote {
-          margin: 0 0 8px;
-          color: #b4530a;
-          font-size: 13.5px;
-          line-height: 1.5;
-        }
-        .quote::before { content: "\\201C"; }
-        .quote::after { content: "\\201D"; }
-
-        .plain {
-          margin: 0 0 8px;
-          font-size: 13.5px;
-          font-weight: 600;
-          color: #16181d;
-        }
-
-        .jump {
-          color: #2f5fd1;
-          font-size: 12.5px;
-          text-decoration: underline;
-          text-underline-offset: 2px;
-        }
-        .jump:hover { color: #1f45a8; }
-
-        .note {
-          margin: 0;
-          padding: 24px 4px;
-          color: #9aa0a8;
-          font-size: 13px;
-          text-align: center;
-        }
-
-        .note.error { color: #a3241f; }
-
-        .spinner {
-          display: block;
-          width: 18px;
-          height: 18px;
-          margin: 0 auto 12px;
-          border: 2px solid #e5e7ea;
-          border-top-color: #16181d;
-          border-radius: 50%;
-          animation: spin 0.75s linear infinite;
-        }
-
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        @media (prefers-color-scheme: dark) {
-          .panel { background: #17191d; color: #eceef1; }
-          header { border-bottom-color: #2a2d33; }
-          .close { color: #868c96; }
-          .close:hover { background: #23262c; color: #eceef1; }
-          .item { border-bottom-color: #2a2d33; }
-          .quote { color: #e2924e; }
-          .plain { color: #eceef1; }
-          .jump { color: #7ea1ff; }
-          .jump:hover { color: #a9c2ff; }
-          .note { color: #868c96; }
-          .note.error { color: #ef8d86; }
-          .spinner { border-color: #2a2d33; border-top-color: #eceef1; }
-        }
-      </style>
-
-      <div class="panel" part="panel">
-        <header>
-          <p class="heading">Buzzword Decoder</p>
-          <button class="close" type="button" aria-label="Close">&times;</button>
-        </header>
-        <div class="body"></div>
-      </div>
-    `;
-
-    shadow.querySelector(".close").addEventListener("click", closePanel);
-
-    // Force a style flush so the off-screen transform is the computed starting
-    // point, then slide in. Doing this synchronously (rather than in
-    // requestAnimationFrame) means the panel still appears if frames are being
-    // throttled — otherwise it would sit parked off-screen.
-    const panel = shadow.querySelector(".panel");
-    void panel.offsetWidth;
-    panel.classList.add("open");
-
-    return shadow;
-  }
-
-  function closePanel() {
-    if (!shadow) return;
-    const panel = shadow.querySelector(".panel");
-    panel.classList.remove("open");
-    const host = shadow.host;
-    setTimeout(() => host.remove(), 280);
-    shadow = null;
-  }
-
-  function setBody(headingText, build) {
-    const root = getPanel();
-    root.querySelector(".heading").textContent = headingText;
-
-    const body = root.querySelector(".body");
-    body.textContent = "";
-    build(body);
-  }
-
-  function renderLoading(chunkCount) {
-    setBody("Buzzword Decoder", (body) => {
-      const spinner = document.createElement("div");
-      spinner.className = "spinner";
-
-      const note = document.createElement("p");
-      note.className = "note";
-      note.textContent = `Reading ${chunkCount} ${chunkCount === 1 ? "section" : "sections"} of this page…`;
-
-      body.append(spinner, note);
-    });
-  }
-
-  function renderEmpty(message) {
-    setBody("Buzzword Decoder", (body) => {
-      const note = document.createElement("p");
-      note.className = "note";
-      note.textContent = message;
-      body.appendChild(note);
-    });
-  }
-
-  function renderError(message) {
-    setBody("Buzzword Decoder", (body) => {
-      const note = document.createElement("p");
-      note.className = "note error";
-      note.textContent = message;
-      body.appendChild(note);
-    });
-  }
-
-  function renderResults(pairs) {
-    setBody(`${pairs.length} ${pairs.length === 1 ? "buzzword" : "buzzwords"} found`, (body) => {
-      for (const pair of pairs) {
-        const item = document.createElement("div");
-        item.className = "item";
-
-        const quote = document.createElement("p");
-        quote.className = "quote";
-        quote.textContent = pair.original;
-
-        const plain = document.createElement("p");
-        plain.className = "plain";
-        plain.textContent = pair.plain;
-
-        const jump = document.createElement("a");
-        jump.className = "jump";
-        jump.href = "#";
-        jump.textContent = "Jump to spot ↗";
-        jump.addEventListener("click", (e) => {
-          e.preventDefault();
-          revealOnPage(pair.original);
-        });
-
-        item.append(quote, plain, jump);
-        body.appendChild(item);
+    const style = document.createElement("style");
+    style.id = "bd-styles";
+    style.textContent = `
+      .${MARK_CLASS} {
+        text-decoration-line: underline !important;
+        text-decoration-style: dotted !important;
+        text-decoration-color: #b4530a !important;
+        text-decoration-thickness: 1.5px !important;
+        text-underline-offset: 3px !important;
+        cursor: help !important;
+        border-radius: 2px;
+        transition: background-color 120ms ease;
       }
+      .${MARK_CLASS}:hover, .${MARK_CLASS}:focus-visible {
+        background-color: rgba(180, 83, 10, 0.14);
+        outline: none;
+      }
+      @media (prefers-color-scheme: dark) {
+        .${MARK_CLASS} {
+          text-decoration-color: #e2924e !important;
+        }
+        .${MARK_CLASS}:hover, .${MARK_CLASS}:focus-visible {
+          background-color: rgba(226, 146, 78, 0.18);
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function clearMarks() {
+    document.querySelectorAll(`.${MARK_CLASS}`).forEach((mark) => {
+      const parent = mark.parentNode;
+      if (!parent) return;
+      parent.replaceChild(document.createTextNode(mark.textContent), mark);
+      parent.normalize();
     });
+    markPlainText = new WeakMap();
   }
 
-  // -------------------------------------------------------------------------
-  // Click a card to jump to the phrase on the page
-  // -------------------------------------------------------------------------
-
-  function revealOnPage(phrase) {
-    try {
-      const target = findElementContaining(phrase);
-      if (!target) return;
-
-      target.scrollIntoView({ behavior: "smooth", block: "center" });
-
-      const previous = target.style.backgroundColor;
-      const previousTransition = target.style.transition;
-      target.style.transition = "background-color 400ms ease";
-      target.style.backgroundColor = "rgba(226, 168, 90, 0.35)";
-
-      setTimeout(() => {
-        target.style.backgroundColor = previous;
-        setTimeout(() => {
-          target.style.transition = previousTransition;
-        }, 450);
-      }, 1400);
-    } catch {
-      // Locating is a convenience — never let it break the panel.
+  function highlightPairs(pairs) {
+    let placed = 0;
+    for (const pair of pairs) {
+      if (markPhrase(pair)) placed++;
     }
+    return placed;
   }
 
-  function findElementContaining(phrase) {
-    const needle = phrase.replace(/\s+/g, " ").trim().toLowerCase();
-    if (!needle) return null;
+  /**
+   * Finds the first live text node containing `pair.original` and wraps it
+   * in a `.bd-mark` span. The phrase was extracted from whitespace-collapsed
+   * text (see extractBlocks), so the live text node is collapsed the same way
+   * for matching, then the match position is mapped back to real offsets in
+   * the uncollapsed node so the DOM split lands in the right place. Phrases
+   * split across multiple inline nodes (e.g. by an <em>) aren't matched —
+   * skipped silently rather than attempting a fragile multi-node wrap.
+   */
+  function markPhrase(pair) {
+    const needle = pair.original;
+    if (!needle) return false;
 
     const walker = document.createTreeWalker(
-      document.body,
+      document.body ?? document.documentElement,
       NodeFilter.SHOW_TEXT,
       { acceptNode },
     );
 
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const haystack = node.nodeValue.replace(/\s+/g, " ").toLowerCase();
-      if (haystack.includes(needle)) return node.parentElement;
+      const { collapsed, map } = collapseWithMap(node.nodeValue);
+      const idx = collapsed.indexOf(needle);
+      if (idx === -1) continue;
+
+      const startOrig = map[idx];
+      const endOrig = map[idx + needle.length - 1] + 1;
+
+      const before = node.nodeValue.slice(0, startOrig);
+      const matchedText = node.nodeValue.slice(startOrig, endOrig);
+      const after = node.nodeValue.slice(endOrig);
+
+      const mark = document.createElement("span");
+      mark.className = MARK_CLASS;
+      mark.textContent = matchedText;
+      mark.tabIndex = 0;
+      mark.setAttribute("role", "button");
+      mark.setAttribute("aria-label", `Corporate jargon: "${matchedText}". Plain English: ${pair.plain}`);
+      markPlainText.set(mark, pair.plain);
+      attachMarkEvents(mark);
+
+      const frag = document.createDocumentFragment();
+      if (before) frag.appendChild(document.createTextNode(before));
+      frag.appendChild(mark);
+      if (after) frag.appendChild(document.createTextNode(after));
+
+      node.replaceWith(frag);
+      return true;
     }
 
-    // The phrase may span several inline nodes — fall back to the block.
-    for (const el of document.body.querySelectorAll("p, li, td, h1, h2, h3, h4, blockquote, div")) {
-      if (el.closest(`#${PANEL_ID}`)) continue;
-      const text = (el.textContent ?? "").replace(/\s+/g, " ").toLowerCase();
-      if (text.includes(needle) && el.children.length < 12) return el;
+    return false;
+  }
+
+  /** Collapses runs of whitespace to a single space, without trimming, and
+   * returns a map from each collapsed-string index back to the original
+   * string index that produced it — needed to translate a match position
+   * back into real offsets for splitting the text node. */
+  function collapseWithMap(str) {
+    let collapsed = "";
+    const map = [];
+    let inWhitespace = false;
+
+    for (let i = 0; i < str.length; i++) {
+      const ch = str[i];
+      if (/\s/.test(ch)) {
+        if (!inWhitespace) {
+          collapsed += " ";
+          map.push(i);
+          inWhitespace = true;
+        }
+      } else {
+        collapsed += ch;
+        map.push(i);
+        inWhitespace = false;
+      }
     }
 
-    return null;
+    return { collapsed, map };
+  }
+
+  // -------------------------------------------------------------------------
+  // Hover / focus popover
+  // -------------------------------------------------------------------------
+
+  let popoverShadow = null;
+  let hideTimer = null;
+
+  function getPopover() {
+    if (popoverShadow) return popoverShadow;
+
+    const host = document.createElement("div");
+    host.id = POPOVER_HOST_ID;
+    document.documentElement.appendChild(host);
+
+    popoverShadow = host.attachShadow({ mode: "open" });
+    popoverShadow.innerHTML = `
+      <style>
+        :host { all: initial; }
+        * { box-sizing: border-box; }
+
+        .bubble {
+          position: fixed;
+          z-index: 2147483647;
+          display: none;
+          max-width: 300px;
+          padding: 14px 16px;
+          border-radius: 12px;
+          background: #ffffff;
+          box-shadow: 0 12px 32px rgba(15, 18, 25, 0.18), 0 2px 8px rgba(15, 18, 25, 0.08);
+          font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        }
+
+        .bubble.visible { display: block; }
+
+        .header {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          margin-bottom: 6px;
+        }
+
+        .icon {
+          width: 16px;
+          height: 16px;
+          flex: none;
+          border-radius: 4px;
+          background: #b4530a;
+        }
+
+        .label {
+          color: #b4530a;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+        }
+
+        .plain {
+          margin: 0;
+          color: #16181d;
+          font-size: 14px;
+        }
+
+        .tail {
+          position: absolute;
+          width: 12px;
+          height: 12px;
+          left: 20px;
+          background: #ffffff;
+          transform: rotate(45deg);
+        }
+
+        .bubble.tail-bottom .tail {
+          bottom: -6px;
+          box-shadow: 3px 3px 4px -2px rgba(15, 18, 25, 0.12);
+        }
+
+        .bubble.tail-top .tail {
+          top: -6px;
+          box-shadow: -3px -3px 4px -2px rgba(15, 18, 25, 0.12);
+        }
+
+        @media (prefers-color-scheme: dark) {
+          .bubble { background: #17191d; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3); }
+          .plain { color: #eceef1; }
+          .icon { background: #e2924e; }
+          .label { color: #e2924e; }
+          .tail { background: #17191d; }
+        }
+      </style>
+
+      <div class="bubble" part="bubble" role="tooltip" aria-hidden="true">
+        <div class="header">
+          <span class="icon"></span>
+          <span class="label">Plain English</span>
+        </div>
+        <p class="plain"></p>
+        <div class="tail"></div>
+      </div>
+    `;
+
+    const bubble = popoverShadow.querySelector(".bubble");
+    bubble.addEventListener("mouseenter", cancelHide);
+    bubble.addEventListener("mouseleave", scheduleHide);
+
+    // A stale popover pointing at the wrong spot is worse than a hidden one.
+    window.addEventListener("scroll", hidePopoverNow, { capture: true, passive: true });
+
+    return popoverShadow;
+  }
+
+  function attachMarkEvents(mark) {
+    mark.addEventListener("mouseenter", () => showPopover(mark));
+    mark.addEventListener("mouseleave", scheduleHide);
+    mark.addEventListener("focus", () => showPopover(mark));
+    mark.addEventListener("blur", scheduleHide);
+  }
+
+  function showPopover(mark) {
+    const plain = markPlainText.get(mark);
+    if (!plain) return;
+
+    cancelHide();
+
+    const shadow = getPopover();
+    const bubble = shadow.querySelector(".bubble");
+    shadow.querySelector(".plain").textContent = plain;
+
+    // Measure with the bubble laid out but not yet visible, so its final
+    // size (before we know placement) doesn't include a flash at 0,0.
+    bubble.classList.add("visible");
+    bubble.style.visibility = "hidden";
+    bubble.style.top = "0px";
+    bubble.style.left = "0px";
+
+    const popRect = bubble.getBoundingClientRect();
+    const markRect = mark.getBoundingClientRect();
+    const margin = 10;
+
+    let top = markRect.top - popRect.height - margin;
+    let tailClass = "tail-bottom"; // bubble above the mark, tail points down
+    if (top < 8) {
+      top = markRect.bottom + margin;
+      tailClass = "tail-top"; // not enough room above — flip below
+    }
+
+    let left = markRect.left;
+    const maxLeft = window.innerWidth - popRect.width - 8;
+    if (left > maxLeft) left = maxLeft;
+    if (left < 8) left = 8;
+
+    bubble.classList.remove("tail-top", "tail-bottom");
+    bubble.classList.add(tailClass);
+    bubble.style.top = `${top}px`;
+    bubble.style.left = `${left}px`;
+    bubble.style.visibility = "visible";
+  }
+
+  function scheduleHide() {
+    cancelHide();
+    hideTimer = setTimeout(hidePopoverNow, 150);
+  }
+
+  function cancelHide() {
+    clearTimeout(hideTimer);
+    hideTimer = null;
+  }
+
+  function hidePopoverNow() {
+    cancelHide();
+    popoverShadow?.querySelector(".bubble")?.classList.remove("visible");
   }
 })();

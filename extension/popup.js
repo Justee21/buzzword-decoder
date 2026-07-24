@@ -85,7 +85,7 @@ async function onDecode() {
       return;
     }
 
-    setIdle("ok", `Found ${count} ${count === 1 ? "buzzword" : "buzzwords"} — panel opened.`);
+    setIdle("ok", `Found ${count} ${count === 1 ? "buzzword" : "buzzwords"} — hover the underlines to translate.`);
   } catch (err) {
     finishProgress();
     setIdle("error", friendlyError(err));
