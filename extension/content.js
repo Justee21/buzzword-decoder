@@ -43,7 +43,6 @@
   async function runDecode() {
     hidePopoverNow();
     clearMarks();
-    clearDensityIndicator();
     sendStatus({ status: "scanning" });
 
     const blocks = extractBlocks();
@@ -241,13 +240,11 @@
   }
 
   function highlightPairs(pairs) {
-    const marks = [];
+    let placed = 0;
     for (const pair of pairs) {
-      const mark = markPhrase(pair);
-      if (mark) marks.push(mark);
+      if (markPhrase(pair)) placed++;
     }
-    renderDensityIndicator(marks);
-    return marks.length;
+    return placed;
   }
 
   /**
@@ -261,7 +258,7 @@
    */
   function markPhrase(pair) {
     const needle = pair.original;
-    if (!needle) return null;
+    if (!needle) return false;
 
     const walker = document.createTreeWalker(
       document.body ?? document.documentElement,
@@ -296,10 +293,10 @@
       if (after) frag.appendChild(document.createTextNode(after));
 
       node.replaceWith(frag);
-      return mark;
+      return true;
     }
 
-    return null;
+    return false;
   }
 
   /** Collapses runs of whitespace to a single space, without trimming, and
@@ -327,93 +324,6 @@
     }
 
     return { collapsed, map };
-  }
-
-  // -------------------------------------------------------------------------
-  // Density indicator — a thin strip near the scrollbar showing where marks
-  // sit in the full document, like Chrome's find-in-page tick marks. Ticks
-  // are positioned by percentage of total document height (not viewport), so
-  // they stay put regardless of current scroll position.
-  // -------------------------------------------------------------------------
-
-  const DENSITY_HOST_ID = "buzzword-decoder-density";
-
-  function clearDensityIndicator() {
-    document.getElementById(DENSITY_HOST_ID)?.remove();
-  }
-
-  function renderDensityIndicator(marks) {
-    clearDensityIndicator();
-    if (marks.length === 0) return;
-
-    const docHeight = Math.max(
-      document.documentElement.scrollHeight,
-      document.body?.scrollHeight ?? 0,
-      1,
-    );
-
-    const ticks = marks.map((mark, i) => {
-      const top = mark.getBoundingClientRect().top + window.scrollY;
-      const percent = Math.min(99.5, Math.max(0, (top / docHeight) * 100));
-      return { index: i, percent };
-    });
-
-    const host = document.createElement("div");
-    host.id = DENSITY_HOST_ID;
-    document.documentElement.appendChild(host);
-
-    const shadow = host.attachShadow({ mode: "open" });
-    shadow.innerHTML = `
-      <style>
-        :host { all: initial; }
-        * { box-sizing: border-box; }
-
-        .strip {
-          position: fixed;
-          top: 0;
-          right: 2px;
-          width: 5px;
-          height: 100vh;
-          z-index: 2147483646;
-          pointer-events: none;
-        }
-
-        .tick {
-          position: absolute;
-          left: 0;
-          width: 5px;
-          height: 4px;
-          border-radius: 2px;
-          background: #b4530a;
-          opacity: 0.85;
-          pointer-events: auto;
-          cursor: pointer;
-          transition: left 100ms ease, width 100ms ease, opacity 100ms ease;
-        }
-
-        .tick:hover {
-          left: -4px;
-          width: 9px;
-          opacity: 1;
-        }
-
-        @media (prefers-color-scheme: dark) {
-          .tick { background: #e2924e; }
-        }
-      </style>
-      <div class="strip" aria-hidden="true"></div>
-    `;
-
-    const strip = shadow.querySelector(".strip");
-    for (const { index, percent } of ticks) {
-      const tick = document.createElement("div");
-      tick.className = "tick";
-      tick.style.top = `${percent.toFixed(2)}%`;
-      tick.addEventListener("click", () => {
-        marks[index]?.scrollIntoView({ behavior: "smooth", block: "center" });
-      });
-      strip.appendChild(tick);
-    }
   }
 
   // -------------------------------------------------------------------------
