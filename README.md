@@ -24,14 +24,25 @@ The extension **never** touches an API key and never talks to
 your key stays on a server you control, not inside browser-extension code
 that anyone could inspect.
 
-**Each person who wants to use this runs their own proxy with their own
-Anthropic API key.** There's no shared/hosted instance — that's deliberate.
-An API key baked into distributed extension code isn't actually private (it's
-readable by anyone who inspects the extension or reads this repo), so a
-shared setup means everyone spends against one person's account. Running
-your own keeps costs — and usage — entirely yours.
+By default, this extension is pre-configured to use a proxy the author
+already runs, so if you were sent this directly (or installed it from a
+private/unlisted listing), it works with no setup — just load it and click
+Decode This Page. That instance is meant for people the author has
+deliberately shared it with, not general public use, and has a spend cap on
+the API key behind it as a safety net — if that cap is ever hit, decoding
+will simply stop working until it's reset.
+
+**If you'd rather run this fully independently** — your own proxy, your own
+Anthropic API key, no dependency on anyone else's server or spend limit —
+everything below walks through that. An API key baked into distributed
+extension code isn't actually private (it's readable by anyone who inspects
+the extension or reads this repo), so self-hosting is the only way to
+guarantee nobody but you is spending against your key.
 
 ## Requirements
+
+*(Only needed if you're self-hosting — see above. If the extension already
+works for you out of the box, skip straight to [step 5](#5-load-the-extension).)*
 
 - An Anthropic account and API key (free to create — see step 1 below)
 - [Node.js](https://nodejs.org) 18 or newer, to run the proxy (step 3 below
@@ -39,11 +50,11 @@ your own keeps costs — and usage — entirely yours.
 - Google Chrome (or another Chromium-based browser that supports Manifest V3
   extensions)
 
-**Before you start:** this isn't a one-click install. You're running a small
-server on your own computer (or a free hosting account), which means typing
-a handful of commands into a terminal. If you've never done that before,
-budget 15–20 minutes and follow each step in order — none of it requires
-knowing how to code, just copying and pasting exactly what's shown.
+**Before you start:** self-hosting isn't a one-click install. You're running
+a small server on your own computer (or a free hosting account), which means
+typing a handful of commands into a terminal. If you've never done that
+before, budget 15–20 minutes and follow each step in order — none of it
+requires knowing how to code, just copying and pasting exactly what's shown.
 
 ## Setup
 
@@ -172,12 +183,16 @@ No build step — Chrome loads the plain files directly.
 3. Click **Load unpacked** and select the `extension/` folder from this repo
 4. Pin "Buzzword Decoder" to your toolbar
 
-Click the icon, then **change** next to the proxy address:
+It's pre-configured with a working proxy address, so if you skipped the
+self-hosting steps above, you're done — click **Decode This Page** and go.
 
-- **Proxy server** — `http://localhost:3000` if you're running it locally
-  (the default), or your deployed URL if you followed the deploy step above
-- **Auth token** — leave blank for localhost; paste the `PROXY_AUTH_TOKEN`
-  value if you set one
+If you *did* set up your own proxy, click the icon, then **change** next to
+the proxy address, and enter:
+
+- **Proxy server** — `http://localhost:3000` if you're running it locally,
+  or your deployed URL if you followed the deploy step above
+- **Auth token** — leave blank unless you set `PROXY_AUTH_TOKEN` on your own
+  server
 
 Save, then open any page and click **Decode This Page**.
 

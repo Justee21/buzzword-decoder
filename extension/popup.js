@@ -1,4 +1,4 @@
-const DEFAULT_PROXY_URL = "http://localhost:3000";
+const DEFAULT_PROXY_URL = "https://buzzword-decoder.onrender.com";
 
 const decodeButton = document.getElementById("decode");
 const proxyRow = document.getElementById("proxy-row");

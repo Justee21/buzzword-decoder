@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Translates corporate jargon on any webpage into plain English.",
   "permissions": ["activeTab", "scripting", "storage"],
-  "host_permissions": ["http://localhost:3000/*"],
+  "host_permissions": ["https://buzzword-decoder.onrender.com/*"],
   "optional_host_permissions": ["http://*/*", "https://*/*"],
   "icons": {
     "16": "icons/icon16.png",
