@@ -1,5 +1,7 @@
 # Buzzword Decoder
 
+[Watch the demo ↗](https://www.youtube.com/watch?v=6CepTk67Wjk)
+
 A Chrome extension that underlines corporate jargon on any webpage and shows
 you what it actually means when you hover over it — with a bit of snark.
 
